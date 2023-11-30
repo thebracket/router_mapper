@@ -32,9 +32,10 @@ async fn main() -> Result<()> {
     let routers = targets.fetch_all().await?;
     let elapsed = now.elapsed();
     info!(
-        "Queried {} routers in {:.2} seconds",
-        routers.len(),
-        elapsed.as_secs_f64()
+        "Queried {} routers in {:.2} seconds. Retrieved {} routers.",
+        targets.targets.len(),
+        elapsed.as_secs_f64(),
+        routers.len()
     );
 
     // Build the initial route map

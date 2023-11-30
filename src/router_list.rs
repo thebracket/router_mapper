@@ -2,9 +2,9 @@ use crate::router::{router_builder, Router};
 use anyhow::{bail, Result};
 use csv::ReaderBuilder;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::{path::Path, time::Duration};
 use tokio::task::JoinSet;
-use tracing::error;
+use tracing::{error, info};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RouterTarget {
@@ -42,12 +42,26 @@ impl RouterList {
         Ok(Self { targets })
     }
 
+    async fn router_builder_with_retries(ip: String, community: String, retries: u32) -> Result<Router> {
+        for attempt in 0..retries {
+            if attempt > 0 {
+                info!("Retrying {ip} (attempt {attempt} of {retries})...");
+            }
+            match router_builder(ip.clone(), community.clone()).await {
+                Ok(router) => return Ok(router),
+                Err(e) => error!("Error fetching SNMP data from {ip}: {e}"),
+            }
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+        bail!("Unable to fetch SNMP data from {ip}. I tried {retries} times");
+    }
+
     pub async fn fetch_all(&self) -> Result<Vec<Router>> {
         let mut set = JoinSet::new();
         for target in self.targets.iter() {
             let ip = target.ip_address.clone();
             let community = target.community.clone();
-            let router = router_builder(ip, community);
+            let router = Self::router_builder_with_retries(ip, community, 3);
             set.spawn(router);
         }
 
