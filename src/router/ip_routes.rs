@@ -25,13 +25,13 @@ impl IpRoutes {
         );
 
         if dgw_dest.is_err() || dgw_iface.is_err() || dgw_next_hop.is_err() {
-            error!("Error obtaining gateway information: {:?}", dgw_dest.err());
+            error!("Error obtaining gateway information: {:?}, {ip_address}", dgw_dest.err());
             return Ok(Self { routes: vec![] });
         }
 
         let (dgw_dest, dgw_iface, dgw_next_hop) = (dgw_dest?, dgw_iface?, dgw_next_hop?);
         if dgw_dest.is_empty() || dgw_iface.is_empty() || dgw_next_hop.is_empty() {
-            error!("Error obtaining gateway information - no routes found");
+            error!("Error obtaining gateway information - no routes found, {ip_address}");
             return Ok(Self { routes: vec![] });
         }
 

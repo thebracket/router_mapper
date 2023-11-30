@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-const TIMEOUT: Duration = Duration::from_secs(30);
+const TIMEOUT: Duration = Duration::from_secs(5);
 // Setting this to large numbers breaks on Mikrotik
 const MAX_REPEAT: u32 = 20;
 
