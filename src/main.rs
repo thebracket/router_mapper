@@ -49,11 +49,16 @@ async fn main() -> Result<()> {
     // Find by default gateway search
     route_map.iter_mut().enumerate().for_each(|(idx, map)| {
         let me = &routers[idx];
-        let my_default_route = &me.ip_routes.routes[0].next_hop;
-        let likely_parent = routers.iter().position(|r| {
-            r.ip_table.ips.iter().any(|ip| ip.address == *my_default_route)
-        });
-        map.parent = likely_parent;
+        if !me.ip_routes.routes.is_empty() {
+            let my_default_route = &me.ip_routes.routes[0].next_hop;
+            let likely_parent = routers.iter().position(|r| {
+                r.ip_table
+                    .ips
+                    .iter()
+                    .any(|ip| ip.address == *my_default_route)
+            });
+            map.parent = likely_parent;
+        }
     });
 
     // Display as a nice tree
