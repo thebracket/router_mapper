@@ -1,5 +1,5 @@
 use crate::query_engine::{as_int, as_ip, snmp_query};
-use anyhow::Result;
+use anyhow::{Result, bail};
 use tracing::error;
 use std::net::IpAddr;
 
@@ -25,14 +25,12 @@ impl IpRoutes {
         );
 
         if dgw_dest.is_err() || dgw_iface.is_err() || dgw_next_hop.is_err() {
-            error!("Error obtaining gateway information: {:?}, {ip_address}", dgw_dest.err());
-            return Ok(Self { routes: vec![] });
+            return Self::from_snmp_modern(ip_address, community).await;
         }
 
         let (dgw_dest, dgw_iface, dgw_next_hop) = (dgw_dest?, dgw_iface?, dgw_next_hop?);
         if dgw_dest.is_empty() || dgw_iface.is_empty() || dgw_next_hop.is_empty() {
-            error!("Error obtaining gateway information - no routes found, {ip_address}");
-            return Ok(Self { routes: vec![] });
+            return Self::from_snmp_modern(ip_address, community).await;
         }
 
         Ok(Self {
@@ -40,6 +38,34 @@ impl IpRoutes {
                 destination: as_ip(&dgw_dest[0].1)?,
                 interface_index: as_int(&dgw_iface[0].1)?,
                 next_hop: as_ip(&dgw_next_hop[0].1)?,
+            }],
+        })
+    }
+
+    async fn from_snmp_modern(ip_address: &str, community: &str) -> Result<Self> {
+        let (dest, next_hop) = tokio::join!(
+            snmp_query(ip_address, community, "1.3.6.1.2.1.4.24.4.1.1.0.0.0.0"),
+            snmp_query(ip_address, community, "1.3.6.1.2.1.4.24.4.1.4.0.0.0.0")
+        );
+
+        if dest.is_err() || next_hop.is_err() {
+            error!("Error obtaining gateway information: {:?}, {ip_address}", dest.err());
+            return Ok(Self { routes: vec![] });
+        }
+
+        let (dest, next_hop) = (dest?, next_hop?);
+
+        if dest.is_empty() || next_hop.is_empty() {
+            error!("Error obtaining gateway information - no routes found, {ip_address}");
+            return Ok(Self { routes: vec![] });
+        }
+
+        tracing::info!("Returning routes via inetCidrRouteTable");
+        Ok(Self {
+            routes: vec![IpRoute {
+                destination: as_ip(&dest[0].1)?,
+                interface_index: -1,
+                next_hop: as_ip(&next_hop[0].1)?,
             }],
         })
     }
