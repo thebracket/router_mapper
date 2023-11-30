@@ -1,0 +1,5 @@
+# List of IP addresses and SNMP communities to query.
+# IPv6 is supported for reading - but really not recommended at this point.
+# Rename this file from .example to .csv, and put actual data into it.
+IP, Community
+192.168.1.1, public
