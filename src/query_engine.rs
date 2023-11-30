@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use csnmp::{ObjectIdentifier, ObjectValue, Snmp2cClient};
+use crate::csnmp::{ObjectIdentifier, ObjectValue, Snmp2cClient};
 use ipnetwork::ip_mask_to_prefix;
 use std::{
     net::{IpAddr, SocketAddr},

@@ -41,3 +41,7 @@ Paquin-Edge
 ```
 
 Eventually, this is intended to be a useful addition to the LibreQoS network mapping system. For now, it's a toy. Enjoy.
+
+## Notes
+
+Currently using a fork of `csnmp`, because the original crashes on duplicate entries in a table. Routing tables are *allowed* to have multiple entries.

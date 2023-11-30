@@ -1,3 +1,7 @@
+#![recursion_limit = "256"]
+#![allow(dead_code)]
+
+mod csnmp;
 mod router;
 use anyhow::Result;
 use std::time::Instant;
