@@ -6,8 +6,12 @@ use std::{
     time::Duration,
 };
 
+// You may want to adjust this timeout depending on your network
 const TIMEOUT: Duration = Duration::from_secs(5);
-// Setting this to large numbers breaks on Mikrotik
+
+// Setting this to large numbers breaks on Mikrotik. Higher numbers
+// give a performance benefit on platforms that support it. 20 seems
+// to be a safe defalt.
 const MAX_REPEAT: u32 = 20;
 
 pub async fn snmp_query(
