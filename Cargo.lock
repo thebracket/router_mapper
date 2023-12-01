@@ -368,6 +368,7 @@ dependencies = [
  "derivative",
  "from-to-repr",
  "ipnetwork",
+ "once_cell",
  "serde",
  "simple_asn1",
  "tokio",

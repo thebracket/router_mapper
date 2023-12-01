@@ -42,6 +42,17 @@ Paquin-Edge
 
 Eventually, this is intended to be a useful addition to the LibreQoS network mapping system. For now, it's a toy. Enjoy.
 
+## Configuration
+
+The tool will run on its own, but if you want to adjust options you need to create a file
+named `router_mapper.toml`. In this file, you can set options:
+
+```toml
+enable_next_hop_lookup = true
+```
+
+The `enable_next_hop_lookup` option enables compatibility with networks that combine two routing protocols, for example OSPF for local addresses and an iBGP routing reflector system. The actual `0.0.0.0` route won't be correct for these hierarchies---so an additional hop lookup is performed. It should be harmless on other systems.
+
 ## Notes
 
 Currently using a fork of `csnmp`, because the original crashes on duplicate entries in a table. Routing tables are *allowed* to have multiple entries.

@@ -26,7 +26,6 @@ macro_rules! make_oid {
     };
 }
 
-
 #[cfg(feature = "tracing")]
 #[macro_export]
 macro_rules! debug {
@@ -41,7 +40,6 @@ macro_rules! debug {
     ($first_expr:expr $(, $other_expr:expr)* $(,)?) => {};
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::csnmp::ObjectIdentifier;
@@ -54,7 +52,7 @@ mod tests {
 
     #[test]
     fn test_two_arc_oid() {
-        const SHORT_OID: ObjectIdentifier = make_oid!(1,3);
+        const SHORT_OID: ObjectIdentifier = make_oid!(1, 3);
         let mut arcs = [0u32; 128];
         arcs[0] = 1;
         arcs[1] = 3;
@@ -63,7 +61,7 @@ mod tests {
 
     #[test]
     fn test_8_arc_oid() {
-        const EIGHT_ARC_OID: ObjectIdentifier = make_oid!(1,3,6,1,2,1,2,2);
+        const EIGHT_ARC_OID: ObjectIdentifier = make_oid!(1, 3, 6, 1, 2, 1, 2, 2);
         let mut arcs = [0u32; 128];
         arcs[0] = 1;
         arcs[1] = 3;

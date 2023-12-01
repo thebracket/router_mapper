@@ -17,3 +17,4 @@ derivative = { version = "2.2" }
 from-to-repr = { version = "0.1" }
 simple_asn1 = { version = "0.6" }
 toml = "0.8.8"
+once_cell = "1.18.0"

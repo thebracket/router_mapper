@@ -5,18 +5,16 @@ use std::net::Ipv4Addr;
 use derivative::Derivative;
 use from_to_repr::FromToRepr;
 use simple_asn1::{
-    ASN1Block, ASN1Class, ASN1DecodeErr, ASN1EncodeErr, BigInt, BigUint, FromASN1, from_der, OID,
-    ToASN1, to_der,
+    from_der, to_der, ASN1Block, ASN1Class, ASN1DecodeErr, ASN1EncodeErr, BigInt, BigUint,
+    FromASN1, ToASN1, OID,
 };
 
 use crate::csnmp::oid::{ObjectIdentifier, ObjectIdentifierConversionError};
-
 
 /// Version value stored in every SNMP2c message.
 ///
 /// See RFC1901, section 3.
 pub const VERSION_VALUE: i64 = 1;
-
 
 /// Encodes which type of ASN.1 value was expected.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -30,7 +28,6 @@ pub enum ExpectedAsn1Type {
     /// A virtual type representing any SNMP value (`ObjectSyntax`).
     AnySnmpValueType,
 }
-
 
 /// An error that has occurred while attempting to read an SNMP message.
 #[derive(Clone, Debug, PartialEq)]
@@ -52,10 +49,16 @@ pub enum SnmpMessageError {
     TooShort { expected: usize, obtained: usize },
 
     /// While decoding the message, a different type was read than expected.
-    UnexpectedType { expected: ExpectedAsn1Type, obtained: ASN1Block },
+    UnexpectedType {
+        expected: ExpectedAsn1Type,
+        obtained: ASN1Block,
+    },
 
     /// While decoding an integer, it did not fit in the range of a primitive type.
-    IntegerPrimitiveRange { primitive_type: &'static str, obtained: ASN1Block },
+    IntegerPrimitiveRange {
+        primitive_type: &'static str,
+        obtained: ASN1Block,
+    },
 
     /// The SNMP message has an incorrect version.
     IncorrectVersion { expected: i64, obtained: i64 },
@@ -64,21 +67,33 @@ pub enum SnmpMessageError {
     UnexpectedTag { obtained: BigUint },
 
     /// A value was tagged by a tag of an unexpected class.
-    UnexpectedTagClass { expected: Vec<ASN1Class>, obtained: ASN1Class },
+    UnexpectedTagClass {
+        expected: Vec<ASN1Class>,
+        obtained: ASN1Class,
+    },
 
     /// A value was expected to be tagged but wasn't.
     UntaggedValue { obtained: ASN1Block },
 
     /// An out-of-range value has been obtained for an enumeration.
-    EnumRange { enum_name: &'static str, obtained: ASN1Block },
+    EnumRange {
+        enum_name: &'static str,
+        obtained: ASN1Block,
+    },
 
     /// An object identifier has been encountered which is a valid ASN.1 object identifier but not
     /// a valid SNMP object identifier.
-    OidDecode { oid: OID, error: ObjectIdentifierConversionError },
+    OidDecode {
+        oid: OID,
+        error: ObjectIdentifierConversionError,
+    },
 
     /// An object identifier has been encountered which is a valid SNMP object identifier but not
     /// a valid ASN.1 object identifier.
-    OidEncode { oid: ObjectIdentifier, error: ObjectIdentifierConversionError },
+    OidEncode {
+        oid: ObjectIdentifier,
+        error: ObjectIdentifierConversionError,
+    },
 }
 impl SnmpMessageError {
     /// Checks whether the given slice of [`ASN1Block`s][ASN1Block] has at least the given number of
@@ -111,7 +126,10 @@ impl SnmpMessageError {
 
     /// Checks whether the given [`ASN1Class`] has the given value. Returns `Ok(())` if it does and
     /// `Err(_)` with an appropriate [`SnmpMessageError`] variant if it does not.
-    pub fn check_tag_class(obtained: ASN1Class, expected: ASN1Class) -> Result<(), SnmpMessageError> {
+    pub fn check_tag_class(
+        obtained: ASN1Class,
+        expected: ASN1Class,
+    ) -> Result<(), SnmpMessageError> {
         if obtained != expected {
             Err(SnmpMessageError::UnexpectedTagClass {
                 expected: vec![expected],
@@ -125,51 +143,83 @@ impl SnmpMessageError {
 impl fmt::Display for SnmpMessageError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Asn1Decoding(asn1)
-                => write!(f, "ASN.1 decoding error: {}", asn1),
-            Self::Asn1Encoding(asn1)
-                => write!(f, "ASN.1 encoding error: {}", asn1),
-            Self::Length { expected, obtained }
-                => write!(f, "message has wrong length: expected {} ASN.1 blocks, obtained {}", expected, obtained),
-            Self::TooShort { expected, obtained }
-                => write!(f, "message too short: expected {} ASN.1 blocks, obtained {}", expected, obtained),
-            Self::UnexpectedType { expected, obtained }
-                => write!(f, "expected {:?} value, obtained {:?}", expected, obtained),
-            Self::IntegerPrimitiveRange { primitive_type, obtained }
-                => write!(f, "integer value does not fit into {}, obtained {:?}", primitive_type, obtained),
-            Self::IncorrectVersion { expected, obtained }
-                => write!(f, "incorrect SNMP message version: expected {}, obtained {}", expected, obtained),
-            Self::UnexpectedTag { obtained }
-                => write!(f, "unexpected tag; obtained {:?}", obtained),
-            Self::UnexpectedTagClass { expected, obtained }
-                => write!(f, "unexpected tag class: expected {:?}, obtained {:?}", expected, obtained),
-            Self::UntaggedValue { obtained }
-                => write!(f, "untagged value; obtained {:?}", obtained),
-            Self::EnumRange { enum_name, obtained }
-                => write!(f, "invalid value {:?} obtained for enumeration {:?}", obtained, enum_name),
-            Self::OidDecode { oid, error }
-                => write!(f, "object identifier {:?} invalid for SNMP: {}", oid, error),
-            Self::OidEncode { oid, error }
-                => write!(f, "object identifier {:?} invalid for ASN.1: {}", oid, error),
+            Self::Asn1Decoding(asn1) => write!(f, "ASN.1 decoding error: {}", asn1),
+            Self::Asn1Encoding(asn1) => write!(f, "ASN.1 encoding error: {}", asn1),
+            Self::Length { expected, obtained } => write!(
+                f,
+                "message has wrong length: expected {} ASN.1 blocks, obtained {}",
+                expected, obtained
+            ),
+            Self::TooShort { expected, obtained } => write!(
+                f,
+                "message too short: expected {} ASN.1 blocks, obtained {}",
+                expected, obtained
+            ),
+            Self::UnexpectedType { expected, obtained } => {
+                write!(f, "expected {:?} value, obtained {:?}", expected, obtained)
+            }
+            Self::IntegerPrimitiveRange {
+                primitive_type,
+                obtained,
+            } => write!(
+                f,
+                "integer value does not fit into {}, obtained {:?}",
+                primitive_type, obtained
+            ),
+            Self::IncorrectVersion { expected, obtained } => write!(
+                f,
+                "incorrect SNMP message version: expected {}, obtained {}",
+                expected, obtained
+            ),
+            Self::UnexpectedTag { obtained } => {
+                write!(f, "unexpected tag; obtained {:?}", obtained)
+            }
+            Self::UnexpectedTagClass { expected, obtained } => write!(
+                f,
+                "unexpected tag class: expected {:?}, obtained {:?}",
+                expected, obtained
+            ),
+            Self::UntaggedValue { obtained } => {
+                write!(f, "untagged value; obtained {:?}", obtained)
+            }
+            Self::EnumRange {
+                enum_name,
+                obtained,
+            } => write!(
+                f,
+                "invalid value {:?} obtained for enumeration {:?}",
+                obtained, enum_name
+            ),
+            Self::OidDecode { oid, error } => {
+                write!(f, "object identifier {:?} invalid for SNMP: {}", oid, error)
+            }
+            Self::OidEncode { oid, error } => write!(
+                f,
+                "object identifier {:?} invalid for ASN.1: {}",
+                oid, error
+            ),
         }
     }
 }
-impl Error for SnmpMessageError {
-}
+impl Error for SnmpMessageError {}
 impl From<ASN1DecodeErr> for SnmpMessageError {
-    fn from(e: ASN1DecodeErr) -> Self { Self::Asn1Decoding(e) }
+    fn from(e: ASN1DecodeErr) -> Self {
+        Self::Asn1Decoding(e)
+    }
 }
 impl From<ASN1EncodeErr> for SnmpMessageError {
-    fn from(e: ASN1EncodeErr) -> Self { Self::Asn1Encoding(e) }
+    fn from(e: ASN1EncodeErr) -> Self {
+        Self::Asn1Encoding(e)
+    }
 }
-
 
 /// Implements a conversion from an ASN.1 number block to a primitive integral value.
 macro_rules! asn1_number_to_primitive {
     ($name:ident, $type:ty) => {
         fn $name(&self) -> Result<$type, SnmpMessageError> {
             if let Self::Integer(_offset, value) = self {
-                value.try_into()
+                value
+                    .try_into()
                     .map_err(|_| SnmpMessageError::IntegerPrimitiveRange {
                         primitive_type: stringify!($type),
                         obtained: self.clone(),
@@ -187,11 +237,11 @@ macro_rules! asn1_number_to_primitive {
 /// Implements a conversion from a primitive integral value to an ASN.1 number block.
 macro_rules! asn1_number_from_primitive {
     ($name:ident, $type:ty) => {
-        fn $name(i: $type) -> Self { Self::Integer(0, BigInt::from(i)) }
+        fn $name(i: $type) -> Self {
+            Self::Integer(0, BigInt::from(i))
+        }
     };
 }
-
-
 
 /// Extension functions on [`ASN1Block`].
 trait Asn1BlockExtensions: Sized {
@@ -289,7 +339,8 @@ impl Asn1BlockExtensions for ASN1Block {
 
     fn as_big_uint(&self) -> Result<BigUint, SnmpMessageError> {
         if let Self::Integer(_offset, value) = self {
-            value.try_into()
+            value
+                .try_into()
                 .map_err(|_| SnmpMessageError::IntegerPrimitiveRange {
                     primitive_type: "BigUint",
                     obtained: self.clone(),
@@ -380,13 +431,12 @@ impl Asn1BlockExtensions for ASN1Block {
     }
 }
 
-
 // RFC1901, section 3.
 #[derive(Clone, Derivative, Eq, Hash, PartialEq)]
 #[derivative(Debug)]
 pub struct Snmp2cMessage {
     pub version: i64,
-    #[derivative(Debug="ignore")]
+    #[derivative(Debug = "ignore")]
     pub community: Vec<u8>,
     pub pdu: Snmp2cPdu,
 }
@@ -503,9 +553,7 @@ impl FromASN1 for Snmp2cPdu {
             let (bulk_pdu, _rest) = BulkPdu::from_asn1(&[untagged.clone()])?;
             Self::GetBulkRequest(bulk_pdu)
         } else {
-            return Err(SnmpMessageError::UnexpectedTag {
-                obtained: tag,
-            });
+            return Err(SnmpMessageError::UnexpectedTag { obtained: tag });
         };
 
         Ok((outer_pdu, &v[1..]))
@@ -582,8 +630,11 @@ impl FromASN1 for InnerPdu {
         SnmpMessageError::check_length(&seq, 4)?;
 
         let request_id = seq[0].as_i32()?;
-        let error_status = ErrorStatus::try_from(seq[1].as_u8()?)
-            .map_err(|_| SnmpMessageError::EnumRange { enum_name: "ErrorStatus", obtained: seq[1].clone() })?;
+        let error_status =
+            ErrorStatus::try_from(seq[1].as_u8()?).map_err(|_| SnmpMessageError::EnumRange {
+                enum_name: "ErrorStatus",
+                obtained: seq[1].clone(),
+            })?;
         let error_index = seq[2].as_u32()?;
 
         let bindings_sequence = seq[3].as_sequence()?;
@@ -691,18 +742,15 @@ impl FromASN1 for VariableBinding {
         SnmpMessageError::check_length(&seq, 2)?;
 
         let name_asn1 = seq[0].as_oid()?;
-        let name = ObjectIdentifier::try_from(name_asn1)
-            .map_err(|error| SnmpMessageError::OidDecode {
+        let name =
+            ObjectIdentifier::try_from(name_asn1).map_err(|error| SnmpMessageError::OidDecode {
                 oid: name_asn1.clone(),
                 error,
             })?;
 
         let (value, _rest) = BindingValue::from_asn1(&[seq[1].clone()])?;
 
-        let binding = Self {
-            name,
-            value,
-        };
+        let binding = Self { name, value };
         Ok((binding, &v[1..]))
     }
 }
@@ -713,11 +761,13 @@ impl ToASN1 for VariableBinding {
         let mut val_vec = self.value.to_asn1()?;
         let mut ret = Vec::with_capacity(1 + val_vec.len());
 
-        let name_asn1: OID = (&self.name).try_into()
-            .map_err(|error| SnmpMessageError::OidEncode {
-                oid: self.name.clone(),
-                error,
-            })?;
+        let name_asn1: OID =
+            (&self.name)
+                .try_into()
+                .map_err(|error| SnmpMessageError::OidEncode {
+                    oid: self.name.clone(),
+                    error,
+                })?;
 
         ret.push(ASN1Block::ObjectIdentifier(0, name_asn1));
         ret.append(&mut val_vec);
@@ -753,7 +803,13 @@ impl FromASN1 for BindingValue {
         SnmpMessageError::check_min_length(&v, 1)?;
         let binding_value = match &v[0] {
             ASN1Block::Null(_offset) => Self::Unspecified,
-            ASN1Block::Unknown(ASN1Class::ContextSpecific, _constructed, _offset, tag, content_bytes) => {
+            ASN1Block::Unknown(
+                ASN1Class::ContextSpecific,
+                _constructed,
+                _offset,
+                tag,
+                content_bytes,
+            ) => {
                 if content_bytes.len() > 0 {
                     return Err(SnmpMessageError::UnexpectedType {
                         expected: ExpectedAsn1Type::Null,
@@ -773,11 +829,11 @@ impl FromASN1 for BindingValue {
                         obtained: v[0].clone(),
                     });
                 }
-            },
+            }
             _other => {
                 let (val, _rest) = ObjectValue::from_asn1(v)?;
                 Self::Value(val)
-            },
+            }
         };
 
         Ok((binding_value, &v[1..]))
@@ -790,15 +846,21 @@ impl ToASN1 for BindingValue {
         match self {
             Self::Unspecified => Ok(vec![ASN1Block::Null(0)]),
             Self::Value(val) => val.to_asn1(),
-            Self::NoSuchObject|Self::NoSuchInstance|Self::EndOfMibView => {
+            Self::NoSuchObject | Self::NoSuchInstance | Self::EndOfMibView => {
                 let tag: u8 = match self {
                     Self::NoSuchObject => 0,
                     Self::NoSuchInstance => 1,
                     Self::EndOfMibView => 2,
                     _ => unreachable!(),
                 };
-                Ok(vec![ASN1Block::Unknown(ASN1Class::ContextSpecific, true, 0, BigUint::from(tag), Vec::new())])
-            },
+                Ok(vec![ASN1Block::Unknown(
+                    ASN1Class::ContextSpecific,
+                    true,
+                    0,
+                    BigUint::from(tag),
+                    Vec::new(),
+                )])
+            }
         }
     }
 }
@@ -881,39 +943,57 @@ impl ObjectValue {
 
     /// Returns whether this `ObjectValue` is an [`Integer`][ObjectValue::Integer].
     #[allow(dead_code)]
-    pub fn is_integer(&self) -> bool { matches!(self, Self::Integer(_)) }
+    pub fn is_integer(&self) -> bool {
+        matches!(self, Self::Integer(_))
+    }
 
     /// Returns whether this `ObjectValue` is a [`String`][ObjectValue::String].
     #[allow(dead_code)]
-    pub fn is_string(&self) -> bool { matches!(self, Self::String(_)) }
+    pub fn is_string(&self) -> bool {
+        matches!(self, Self::String(_))
+    }
 
     /// Returns whether this `ObjectValue` is an [`ObjectId`][ObjectValue::ObjectId].
     #[allow(dead_code)]
-    pub fn is_object_id(&self) -> bool { matches!(self, Self::ObjectId(_)) }
+    pub fn is_object_id(&self) -> bool {
+        matches!(self, Self::ObjectId(_))
+    }
 
     /// Returns whether this `ObjectValue` is an [`IpAddress`][ObjectValue::IpAddress].
     #[allow(dead_code)]
-    pub fn is_ip_address(&self) -> bool { matches!(self, Self::IpAddress(_)) }
+    pub fn is_ip_address(&self) -> bool {
+        matches!(self, Self::IpAddress(_))
+    }
 
     /// Returns whether this `ObjectValue` is a [`Counter32`][ObjectValue::Counter32].
     #[allow(dead_code)]
-    pub fn is_counter32(&self) -> bool { matches!(self, Self::Counter32(_)) }
+    pub fn is_counter32(&self) -> bool {
+        matches!(self, Self::Counter32(_))
+    }
 
     /// Returns whether this `ObjectValue` is an [`Unsigned32`][ObjectValue::Unsigned32].
     #[allow(dead_code)]
-    pub fn is_unsigned32(&self) -> bool { matches!(self, Self::Unsigned32(_)) }
+    pub fn is_unsigned32(&self) -> bool {
+        matches!(self, Self::Unsigned32(_))
+    }
 
     /// Returns whether this `ObjectValue` is a [`TimeTicks`][ObjectValue::TimeTicks].
     #[allow(dead_code)]
-    pub fn is_time_ticks(&self) -> bool { matches!(self, Self::TimeTicks(_)) }
+    pub fn is_time_ticks(&self) -> bool {
+        matches!(self, Self::TimeTicks(_))
+    }
 
     /// Returns whether this `ObjectValue` is an [`Opaque`][ObjectValue::Opaque].
     #[allow(dead_code)]
-    pub fn is_opaque(&self) -> bool { matches!(self, Self::Opaque(_)) }
+    pub fn is_opaque(&self) -> bool {
+        matches!(self, Self::Opaque(_))
+    }
 
     /// Returns whether this `ObjectValue` is a [`Counter64`][ObjectValue::Counter64].
     #[allow(dead_code)]
-    pub fn is_counter64(&self) -> bool { matches!(self, Self::Counter64(_)) }
+    pub fn is_counter64(&self) -> bool {
+        matches!(self, Self::Counter64(_))
+    }
 
     /// Returns the string representation of this `ObjectValue`'s type.
     #[allow(dead_code)]
@@ -939,22 +1019,24 @@ impl FromASN1 for ObjectValue {
 
         let obj_value = match &v[0] {
             ASN1Block::Integer(_offset, num) => {
-                let int_val: i32 = num.try_into()
-                    .map_err(|_| SnmpMessageError::IntegerPrimitiveRange {
-                        primitive_type: "i32",
-                        obtained: v[0].clone(),
-                    })?;
+                let int_val: i32 =
+                    num.try_into()
+                        .map_err(|_| SnmpMessageError::IntegerPrimitiveRange {
+                            primitive_type: "i32",
+                            obtained: v[0].clone(),
+                        })?;
                 Self::Integer(int_val)
-            },
+            }
             ASN1Block::OctetString(_offset, bytes) => Self::String(bytes.clone()),
             ASN1Block::ObjectIdentifier(_offset, oid) => {
-                let snmp_oid: ObjectIdentifier = oid.try_into()
-                    .map_err(|error| SnmpMessageError::OidDecode {
-                        oid: oid.clone(),
-                        error,
-                    })?;
+                let snmp_oid: ObjectIdentifier =
+                    oid.try_into()
+                        .map_err(|error| SnmpMessageError::OidDecode {
+                            oid: oid.clone(),
+                            error,
+                        })?;
                 Self::ObjectId(snmp_oid)
-            },
+            }
 
             ASN1Block::Unknown(cls, _constructed, _offset, tag, content_bytes) => {
                 SnmpMessageError::check_tag_class(*cls, ASN1Class::Application)?;
@@ -1005,14 +1087,14 @@ impl FromASN1 for ObjectValue {
                         obtained: v[0].clone(),
                     });
                 }
-            },
+            }
 
             other => {
                 return Err(SnmpMessageError::UnexpectedType {
                     expected: ExpectedAsn1Type::AnySnmpValueType,
                     obtained: other.clone(),
                 });
-            },
+            }
         };
 
         Ok((obj_value, &v[1..]))
@@ -1028,35 +1110,54 @@ impl ToASN1 for ObjectValue {
             Self::Integer(i) => ret.push(ASN1Block::from_i32(*i)),
             Self::String(bs) => ret.push(ASN1Block::OctetString(0, bs.clone())),
             Self::ObjectId(oid) => {
-                let oid_val: OID = oid.try_into()
+                let oid_val: OID = oid
+                    .try_into()
                     .map_err(|error| SnmpMessageError::OidEncode {
                         oid: oid.clone(),
                         error,
                     })?;
                 ret.push(ASN1Block::ObjectIdentifier(0, oid_val));
-            },
+            }
 
-            Self::IpAddress(addr) => ret.push(ASN1Block::Unknown(ASN1Class::Application, false, 0,
+            Self::IpAddress(addr) => ret.push(ASN1Block::Unknown(
+                ASN1Class::Application,
+                false,
+                0,
                 BigUint::from(0u8),
                 Vec::from(&addr.octets()[..]),
             )),
-            Self::Counter32(i) => ret.push(ASN1Block::Unknown(ASN1Class::Application, false, 0,
+            Self::Counter32(i) => ret.push(ASN1Block::Unknown(
+                ASN1Class::Application,
+                false,
+                0,
                 BigUint::from(1u8),
                 BigInt::from(*i).to_signed_bytes_be(),
             )),
-            Self::Unsigned32(i) => ret.push(ASN1Block::Unknown(ASN1Class::Application, false, 0,
+            Self::Unsigned32(i) => ret.push(ASN1Block::Unknown(
+                ASN1Class::Application,
+                false,
+                0,
                 BigUint::from(2u8),
                 BigInt::from(BigUint::from(*i)).to_signed_bytes_be(),
             )),
-            Self::TimeTicks(i) => ret.push(ASN1Block::Unknown(ASN1Class::Application, false, 0,
+            Self::TimeTicks(i) => ret.push(ASN1Block::Unknown(
+                ASN1Class::Application,
+                false,
+                0,
                 BigUint::from(3u8),
                 BigInt::from(BigUint::from(*i)).to_signed_bytes_be(),
             )),
-            Self::Opaque(bs) => ret.push(ASN1Block::Unknown(ASN1Class::Application, false, 0,
+            Self::Opaque(bs) => ret.push(ASN1Block::Unknown(
+                ASN1Class::Application,
+                false,
+                0,
                 BigUint::from(4u8),
                 bs.clone(),
             )),
-            Self::Counter64(i) => ret.push(ASN1Block::Unknown(ASN1Class::Application, false, 0,
+            Self::Counter64(i) => ret.push(ASN1Block::Unknown(
+                ASN1Class::Application,
+                false,
+                0,
                 BigUint::from(6u8),
                 BigInt::from(BigUint::from(*i)).to_signed_bytes_be(),
             )),
@@ -1065,7 +1166,6 @@ impl ToASN1 for ObjectValue {
         Ok(ret)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -1131,22 +1231,16 @@ mod tests {
     #[test]
     fn test_decode1() {
         let bytes: Vec<u8> = vec![
-             48, 129, 238,   2,   1,   1,   4,   5,  70, 113,  97, 116, 101, 162, 129, 225,
-              2,   4,  38, 176, 163,  99,   2,   1,   0,   2,   1,   0,  48, 129, 210,  48,
-             19,   6,  14,  40, 196,  98,   1,   1,   2,   1,   4,   1,   1,   4,   0,   1,
-             95,   2,   1,   4,  48,  19,   6,  14,  40, 196,  98,   1,   1,   2,   1,   4,
-              1,   1,   4,   0,   2,  94,   2,   1,   4,  48,  19,   6,  14,  40, 196,  98,
-              1,   1,   2,   1,   4,   1,   1,   4,   0,   3,  96,   2,   1,   5,  48,  19,
-              6,  14,  40, 196,  98,   1,   1,   2,   1,   4,   1,   1,   4,   0,   4,  92,
-              2,   1,   4,  48,  19,   6,  14,  40, 196,  98,   1,   1,   2,   1,   4,   1,
-              1,   4,   0,   5,  93,   2,   1,   4,  48,  19,   6,  14,  40, 196,  98,   1,
-              1,   2,   1,   4,   1,   1,   4,   0,  19,  47,   2,   1,   5,  48,  19,   6,
-             14,  40, 196,  98,   1,   1,   2,   1,   4,   1,   1,   4,   0,  22,  54,   2,
-              1,   5,  48,  19,   6,  14,  40, 196,  98,   1,   1,   2,   1,   4,   1,   1,
-              4,   0,  23,  45,   2,   1,   5,  48,  19,   6,  14,  40, 196,  98,   1,   1,
-              2,   1,   4,   1,   1,   4,   0,  24,  52,   2,   1,   5,  48,  19,   6,  14,
-             40, 196,  98,   1,   1,   2,   1,   4,   1,   1,   4,   0,  25,  51,   2,   1,
-              5,
+            48, 129, 238, 2, 1, 1, 4, 5, 70, 113, 97, 116, 101, 162, 129, 225, 2, 4, 38, 176, 163,
+            99, 2, 1, 0, 2, 1, 0, 48, 129, 210, 48, 19, 6, 14, 40, 196, 98, 1, 1, 2, 1, 4, 1, 1, 4,
+            0, 1, 95, 2, 1, 4, 48, 19, 6, 14, 40, 196, 98, 1, 1, 2, 1, 4, 1, 1, 4, 0, 2, 94, 2, 1,
+            4, 48, 19, 6, 14, 40, 196, 98, 1, 1, 2, 1, 4, 1, 1, 4, 0, 3, 96, 2, 1, 5, 48, 19, 6,
+            14, 40, 196, 98, 1, 1, 2, 1, 4, 1, 1, 4, 0, 4, 92, 2, 1, 4, 48, 19, 6, 14, 40, 196, 98,
+            1, 1, 2, 1, 4, 1, 1, 4, 0, 5, 93, 2, 1, 4, 48, 19, 6, 14, 40, 196, 98, 1, 1, 2, 1, 4,
+            1, 1, 4, 0, 19, 47, 2, 1, 5, 48, 19, 6, 14, 40, 196, 98, 1, 1, 2, 1, 4, 1, 1, 4, 0, 22,
+            54, 2, 1, 5, 48, 19, 6, 14, 40, 196, 98, 1, 1, 2, 1, 4, 1, 1, 4, 0, 23, 45, 2, 1, 5,
+            48, 19, 6, 14, 40, 196, 98, 1, 1, 2, 1, 4, 1, 1, 4, 0, 24, 52, 2, 1, 5, 48, 19, 6, 14,
+            40, 196, 98, 1, 1, 2, 1, 4, 1, 1, 4, 0, 25, 51, 2, 1, 5,
         ];
 
         let asn1: Snmp2cMessage = der_decode(&bytes).unwrap();
@@ -1162,25 +1256,55 @@ mod tests {
         assert_eq!(inner_pdu.error_index, 0);
         assert_eq!(inner_pdu.variable_bindings.len(), 10);
 
-        assert_eq!(inner_pdu.variable_bindings[0].name, "1.0.8802.1.1.2.1.4.1.1.4.0.1.95".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[0].name,
+            "1.0.8802.1.1.2.1.4.1.1.4.0.1.95".parse().unwrap()
+        );
         assert_eq!(gimme_int(&inner_pdu.variable_bindings[0]), 4);
-        assert_eq!(inner_pdu.variable_bindings[1].name, "1.0.8802.1.1.2.1.4.1.1.4.0.2.94".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[1].name,
+            "1.0.8802.1.1.2.1.4.1.1.4.0.2.94".parse().unwrap()
+        );
         assert_eq!(gimme_int(&inner_pdu.variable_bindings[1]), 4);
-        assert_eq!(inner_pdu.variable_bindings[2].name, "1.0.8802.1.1.2.1.4.1.1.4.0.3.96".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[2].name,
+            "1.0.8802.1.1.2.1.4.1.1.4.0.3.96".parse().unwrap()
+        );
         assert_eq!(gimme_int(&inner_pdu.variable_bindings[2]), 5);
-        assert_eq!(inner_pdu.variable_bindings[3].name, "1.0.8802.1.1.2.1.4.1.1.4.0.4.92".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[3].name,
+            "1.0.8802.1.1.2.1.4.1.1.4.0.4.92".parse().unwrap()
+        );
         assert_eq!(gimme_int(&inner_pdu.variable_bindings[3]), 4);
-        assert_eq!(inner_pdu.variable_bindings[4].name, "1.0.8802.1.1.2.1.4.1.1.4.0.5.93".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[4].name,
+            "1.0.8802.1.1.2.1.4.1.1.4.0.5.93".parse().unwrap()
+        );
         assert_eq!(gimme_int(&inner_pdu.variable_bindings[4]), 4);
-        assert_eq!(inner_pdu.variable_bindings[5].name, "1.0.8802.1.1.2.1.4.1.1.4.0.19.47".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[5].name,
+            "1.0.8802.1.1.2.1.4.1.1.4.0.19.47".parse().unwrap()
+        );
         assert_eq!(gimme_int(&inner_pdu.variable_bindings[5]), 5);
-        assert_eq!(inner_pdu.variable_bindings[6].name, "1.0.8802.1.1.2.1.4.1.1.4.0.22.54".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[6].name,
+            "1.0.8802.1.1.2.1.4.1.1.4.0.22.54".parse().unwrap()
+        );
         assert_eq!(gimme_int(&inner_pdu.variable_bindings[6]), 5);
-        assert_eq!(inner_pdu.variable_bindings[7].name, "1.0.8802.1.1.2.1.4.1.1.4.0.23.45".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[7].name,
+            "1.0.8802.1.1.2.1.4.1.1.4.0.23.45".parse().unwrap()
+        );
         assert_eq!(gimme_int(&inner_pdu.variable_bindings[7]), 5);
-        assert_eq!(inner_pdu.variable_bindings[8].name, "1.0.8802.1.1.2.1.4.1.1.4.0.24.52".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[8].name,
+            "1.0.8802.1.1.2.1.4.1.1.4.0.24.52".parse().unwrap()
+        );
         assert_eq!(gimme_int(&inner_pdu.variable_bindings[8]), 5);
-        assert_eq!(inner_pdu.variable_bindings[9].name, "1.0.8802.1.1.2.1.4.1.1.4.0.25.51".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[9].name,
+            "1.0.8802.1.1.2.1.4.1.1.4.0.25.51".parse().unwrap()
+        );
         assert_eq!(gimme_int(&inner_pdu.variable_bindings[9]), 5);
     }
 
@@ -1240,22 +1364,16 @@ mod tests {
         let bytes = der_encode(&message).unwrap();
 
         let expected_bytes: Vec<u8> = vec![
-             48, 129, 238,   2,   1,   1,   4,   5,  70, 113,  97, 116, 101, 162, 129, 225,
-              2,   4,  38, 176, 163,  99,   2,   1,   0,   2,   1,   0,  48, 129, 210,  48,
-             19,   6,  14,  40, 196,  98,   1,   1,   2,   1,   4,   1,   1,   4,   0,   1,
-             95,   2,   1,   4,  48,  19,   6,  14,  40, 196,  98,   1,   1,   2,   1,   4,
-              1,   1,   4,   0,   2,  94,   2,   1,   4,  48,  19,   6,  14,  40, 196,  98,
-              1,   1,   2,   1,   4,   1,   1,   4,   0,   3,  96,   2,   1,   5,  48,  19,
-              6,  14,  40, 196,  98,   1,   1,   2,   1,   4,   1,   1,   4,   0,   4,  92,
-              2,   1,   4,  48,  19,   6,  14,  40, 196,  98,   1,   1,   2,   1,   4,   1,
-              1,   4,   0,   5,  93,   2,   1,   4,  48,  19,   6,  14,  40, 196,  98,   1,
-              1,   2,   1,   4,   1,   1,   4,   0,  19,  47,   2,   1,   5,  48,  19,   6,
-             14,  40, 196,  98,   1,   1,   2,   1,   4,   1,   1,   4,   0,  22,  54,   2,
-              1,   5,  48,  19,   6,  14,  40, 196,  98,   1,   1,   2,   1,   4,   1,   1,
-              4,   0,  23,  45,   2,   1,   5,  48,  19,   6,  14,  40, 196,  98,   1,   1,
-              2,   1,   4,   1,   1,   4,   0,  24,  52,   2,   1,   5,  48,  19,   6,  14,
-             40, 196,  98,   1,   1,   2,   1,   4,   1,   1,   4,   0,  25,  51,   2,   1,
-              5,
+            48, 129, 238, 2, 1, 1, 4, 5, 70, 113, 97, 116, 101, 162, 129, 225, 2, 4, 38, 176, 163,
+            99, 2, 1, 0, 2, 1, 0, 48, 129, 210, 48, 19, 6, 14, 40, 196, 98, 1, 1, 2, 1, 4, 1, 1, 4,
+            0, 1, 95, 2, 1, 4, 48, 19, 6, 14, 40, 196, 98, 1, 1, 2, 1, 4, 1, 1, 4, 0, 2, 94, 2, 1,
+            4, 48, 19, 6, 14, 40, 196, 98, 1, 1, 2, 1, 4, 1, 1, 4, 0, 3, 96, 2, 1, 5, 48, 19, 6,
+            14, 40, 196, 98, 1, 1, 2, 1, 4, 1, 1, 4, 0, 4, 92, 2, 1, 4, 48, 19, 6, 14, 40, 196, 98,
+            1, 1, 2, 1, 4, 1, 1, 4, 0, 5, 93, 2, 1, 4, 48, 19, 6, 14, 40, 196, 98, 1, 1, 2, 1, 4,
+            1, 1, 4, 0, 19, 47, 2, 1, 5, 48, 19, 6, 14, 40, 196, 98, 1, 1, 2, 1, 4, 1, 1, 4, 0, 22,
+            54, 2, 1, 5, 48, 19, 6, 14, 40, 196, 98, 1, 1, 2, 1, 4, 1, 1, 4, 0, 23, 45, 2, 1, 5,
+            48, 19, 6, 14, 40, 196, 98, 1, 1, 2, 1, 4, 1, 1, 4, 0, 24, 52, 2, 1, 5, 48, 19, 6, 14,
+            40, 196, 98, 1, 1, 2, 1, 4, 1, 1, 4, 0, 25, 51, 2, 1, 5,
         ];
         assert_eq!(bytes, expected_bytes);
     }
@@ -1263,33 +1381,25 @@ mod tests {
     #[test]
     fn test_decode2() {
         let bytes: Vec<u8> = vec![
-             48, 130,   1, 162,   2,   1,   1,   4,   5,  57, 118,  55,  57,  73, 162, 130,
-              1, 148,   2,   1,   1,   2,   1,   0,   2,   1,   0,  48, 130,   1, 135,  48,
-            129, 202,   6,   8,  43,   6,   1,   2,   1,   1,   1,   0,   4, 129, 189,  67,
-            105, 115,  99, 111,  32,  78,  88,  45,  79,  83,  40, 116, 109,  41,  32, 110,
-             53,  48,  48,  48,  44,  32,  83, 111, 102, 116, 119,  97, 114, 101,  32,  40,
-            110,  53,  48,  48,  48,  45, 117, 107,  57,  41,  44,  32,  86, 101, 114, 115,
-            105, 111, 110,  32,  54,  46,  48,  40,  50,  41,  78,  50,  40,  52,  41,  44,
-             32,  82,  69,  76,  69,  65,  83,  69,  32,  83,  79,  70,  84,  87,  65,  82,
-             69,  32,  67, 111, 112, 121, 114, 105, 103, 104, 116,  32,  40,  99,  41,  32,
-             50,  48,  48,  50,  45,  50,  48,  49,  50,  32,  98, 121,  32,  67, 105, 115,
-             99, 111,  32,  83, 121, 115, 116, 101, 109, 115,  44,  32,  73, 110,  99,  46,
-             32,  68, 101, 118, 105,  99, 101,  32,  77,  97, 110,  97, 103, 101, 114,  32,
-             86, 101, 114, 115, 105, 111, 110,  32,  54,  46,  50,  40,  49,  41,  44,  32,
-             32,  67, 111, 109, 112, 105, 108, 101, 100,  32,  50,  47,  50,  52,  47,  50,
-             48,  49,  52,  32,  49,  52,  58,  48,  48,  58,  48,  48,  48,  24,   6,   8,
-             43,   6,   1,   2,   1,   1,   2,   0,   6,  12,  43,   6,   1,   4,   1,   9,
-             12,   3,   1,   3, 135, 112,  48,  17,   6,   8,  43,   6,   1,   2,   1,   1,
-              3,   0,  67,   5,   0, 153, 230, 155, 197,  48,  15,   6,   8,  43,   6,   1,
-              2,   1,   1,   4,   0,   4,   3,  75,  79,  77,  48,  20,   6,   8,  43,   6,
-              1,   2,   1,   1,   5,   0,   4,   8, 115, 119,  45, 100,  45, 115, 110,  49,
-             48,  19,   6,   8,  43,   6,   1,   2,   1,   1,   6,   0,   4,   7,  68,  67,
-             48,  50,  77,  48,  50,  48,  13,   6,   8,  43,   6,   1,   2,   1,   1,   7,
-              0,   2,   1,  70,  48,  17,   6,   8,  43,   6,   1,   2,   1,   1,   8,   0,
-             67,   5,   0, 255, 255, 255, 126,  48,  20,   6,  10,  43,   6,   1,   2,   1,
-              1,   9,   1,   2,   1,   6,   6,  43,   6,   1,   6,   3,   1,  48,  23,   6,
-             10,  43,   6,   1,   2,   1,   1,   9,   1,   2,   2,   6,   9,  43,   6,   1,
-              6,   3,  16,   2,   2,   1,
+            48, 130, 1, 162, 2, 1, 1, 4, 5, 57, 118, 55, 57, 73, 162, 130, 1, 148, 2, 1, 1, 2, 1,
+            0, 2, 1, 0, 48, 130, 1, 135, 48, 129, 202, 6, 8, 43, 6, 1, 2, 1, 1, 1, 0, 4, 129, 189,
+            67, 105, 115, 99, 111, 32, 78, 88, 45, 79, 83, 40, 116, 109, 41, 32, 110, 53, 48, 48,
+            48, 44, 32, 83, 111, 102, 116, 119, 97, 114, 101, 32, 40, 110, 53, 48, 48, 48, 45, 117,
+            107, 57, 41, 44, 32, 86, 101, 114, 115, 105, 111, 110, 32, 54, 46, 48, 40, 50, 41, 78,
+            50, 40, 52, 41, 44, 32, 82, 69, 76, 69, 65, 83, 69, 32, 83, 79, 70, 84, 87, 65, 82, 69,
+            32, 67, 111, 112, 121, 114, 105, 103, 104, 116, 32, 40, 99, 41, 32, 50, 48, 48, 50, 45,
+            50, 48, 49, 50, 32, 98, 121, 32, 67, 105, 115, 99, 111, 32, 83, 121, 115, 116, 101,
+            109, 115, 44, 32, 73, 110, 99, 46, 32, 68, 101, 118, 105, 99, 101, 32, 77, 97, 110, 97,
+            103, 101, 114, 32, 86, 101, 114, 115, 105, 111, 110, 32, 54, 46, 50, 40, 49, 41, 44,
+            32, 32, 67, 111, 109, 112, 105, 108, 101, 100, 32, 50, 47, 50, 52, 47, 50, 48, 49, 52,
+            32, 49, 52, 58, 48, 48, 58, 48, 48, 48, 24, 6, 8, 43, 6, 1, 2, 1, 1, 2, 0, 6, 12, 43,
+            6, 1, 4, 1, 9, 12, 3, 1, 3, 135, 112, 48, 17, 6, 8, 43, 6, 1, 2, 1, 1, 3, 0, 67, 5, 0,
+            153, 230, 155, 197, 48, 15, 6, 8, 43, 6, 1, 2, 1, 1, 4, 0, 4, 3, 75, 79, 77, 48, 20, 6,
+            8, 43, 6, 1, 2, 1, 1, 5, 0, 4, 8, 115, 119, 45, 100, 45, 115, 110, 49, 48, 19, 6, 8,
+            43, 6, 1, 2, 1, 1, 6, 0, 4, 7, 68, 67, 48, 50, 77, 48, 50, 48, 13, 6, 8, 43, 6, 1, 2,
+            1, 1, 7, 0, 2, 1, 70, 48, 17, 6, 8, 43, 6, 1, 2, 1, 1, 8, 0, 67, 5, 0, 255, 255, 255,
+            126, 48, 20, 6, 10, 43, 6, 1, 2, 1, 1, 9, 1, 2, 1, 6, 6, 43, 6, 1, 6, 3, 1, 48, 23, 6,
+            10, 43, 6, 1, 2, 1, 1, 9, 1, 2, 2, 6, 9, 43, 6, 1, 6, 3, 16, 2, 2, 1,
         ];
 
         let asn1: Snmp2cMessage = der_decode(&bytes).unwrap();
@@ -1305,26 +1415,65 @@ mod tests {
         assert_eq!(inner_pdu.error_index, 0);
         assert_eq!(inner_pdu.variable_bindings.len(), 10);
 
-        assert_eq!(inner_pdu.variable_bindings[0].name, "1.3.6.1.2.1.1.1.0".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[0].name,
+            "1.3.6.1.2.1.1.1.0".parse().unwrap()
+        );
         assert_eq!(gimme_octets(&inner_pdu.variable_bindings[0]), b"Cisco NX-OS(tm) n5000, Software (n5000-uk9), Version 6.0(2)N2(4), RELEASE SOFTWARE Copyright (c) 2002-2012 by Cisco Systems, Inc. Device Manager Version 6.2(1),  Compiled 2/24/2014 14:00:00");
-        assert_eq!(inner_pdu.variable_bindings[1].name, "1.3.6.1.2.1.1.2.0".parse().unwrap());
-        assert_eq!(gimme_oid(&inner_pdu.variable_bindings[1]), "1.3.6.1.4.1.9.12.3.1.3.1008".parse().unwrap());
-        assert_eq!(inner_pdu.variable_bindings[2].name, "1.3.6.1.2.1.1.3.0".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[1].name,
+            "1.3.6.1.2.1.1.2.0".parse().unwrap()
+        );
+        assert_eq!(
+            gimme_oid(&inner_pdu.variable_bindings[1]),
+            "1.3.6.1.4.1.9.12.3.1.3.1008".parse().unwrap()
+        );
+        assert_eq!(
+            inner_pdu.variable_bindings[2].name,
+            "1.3.6.1.2.1.1.3.0".parse().unwrap()
+        );
         assert_eq!(gimme_time(&inner_pdu.variable_bindings[2]), 2582027205);
-        assert_eq!(inner_pdu.variable_bindings[3].name, "1.3.6.1.2.1.1.4.0".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[3].name,
+            "1.3.6.1.2.1.1.4.0".parse().unwrap()
+        );
         assert_eq!(gimme_octets(&inner_pdu.variable_bindings[3]), b"KOM");
-        assert_eq!(inner_pdu.variable_bindings[4].name, "1.3.6.1.2.1.1.5.0".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[4].name,
+            "1.3.6.1.2.1.1.5.0".parse().unwrap()
+        );
         assert_eq!(gimme_octets(&inner_pdu.variable_bindings[4]), b"sw-d-sn1");
-        assert_eq!(inner_pdu.variable_bindings[5].name, "1.3.6.1.2.1.1.6.0".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[5].name,
+            "1.3.6.1.2.1.1.6.0".parse().unwrap()
+        );
         assert_eq!(gimme_octets(&inner_pdu.variable_bindings[5]), b"DC02M02");
-        assert_eq!(inner_pdu.variable_bindings[6].name, "1.3.6.1.2.1.1.7.0".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[6].name,
+            "1.3.6.1.2.1.1.7.0".parse().unwrap()
+        );
         assert_eq!(gimme_int(&inner_pdu.variable_bindings[6]), 70);
-        assert_eq!(inner_pdu.variable_bindings[7].name, "1.3.6.1.2.1.1.8.0".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[7].name,
+            "1.3.6.1.2.1.1.8.0".parse().unwrap()
+        );
         assert_eq!(gimme_time(&inner_pdu.variable_bindings[7]), 4294967166);
-        assert_eq!(inner_pdu.variable_bindings[8].name, "1.3.6.1.2.1.1.9.1.2.1".parse().unwrap());
-        assert_eq!(gimme_oid(&inner_pdu.variable_bindings[8]), "1.3.6.1.6.3.1".parse().unwrap());
-        assert_eq!(inner_pdu.variable_bindings[9].name, "1.3.6.1.2.1.1.9.1.2.2".parse().unwrap());
-        assert_eq!(gimme_oid(&inner_pdu.variable_bindings[9]), "1.3.6.1.6.3.16.2.2.1".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[8].name,
+            "1.3.6.1.2.1.1.9.1.2.1".parse().unwrap()
+        );
+        assert_eq!(
+            gimme_oid(&inner_pdu.variable_bindings[8]),
+            "1.3.6.1.6.3.1".parse().unwrap()
+        );
+        assert_eq!(
+            inner_pdu.variable_bindings[9].name,
+            "1.3.6.1.2.1.1.9.1.2.2".parse().unwrap()
+        );
+        assert_eq!(
+            gimme_oid(&inner_pdu.variable_bindings[9]),
+            "1.3.6.1.6.3.16.2.2.1".parse().unwrap()
+        );
     }
 
     #[test]
@@ -1383,33 +1532,25 @@ mod tests {
         let bytes = der_encode(&message).unwrap();
 
         let expected_bytes: Vec<u8> = vec![
-             48, 130,   1, 162,   2,   1,   1,   4,   5,  57, 118,  55,  57,  73, 162, 130,
-              1, 148,   2,   1,   1,   2,   1,   0,   2,   1,   0,  48, 130,   1, 135,  48,
-            129, 202,   6,   8,  43,   6,   1,   2,   1,   1,   1,   0,   4, 129, 189,  67,
-            105, 115,  99, 111,  32,  78,  88,  45,  79,  83,  40, 116, 109,  41,  32, 110,
-             53,  48,  48,  48,  44,  32,  83, 111, 102, 116, 119,  97, 114, 101,  32,  40,
-            110,  53,  48,  48,  48,  45, 117, 107,  57,  41,  44,  32,  86, 101, 114, 115,
-            105, 111, 110,  32,  54,  46,  48,  40,  50,  41,  78,  50,  40,  52,  41,  44,
-             32,  82,  69,  76,  69,  65,  83,  69,  32,  83,  79,  70,  84,  87,  65,  82,
-             69,  32,  67, 111, 112, 121, 114, 105, 103, 104, 116,  32,  40,  99,  41,  32,
-             50,  48,  48,  50,  45,  50,  48,  49,  50,  32,  98, 121,  32,  67, 105, 115,
-             99, 111,  32,  83, 121, 115, 116, 101, 109, 115,  44,  32,  73, 110,  99,  46,
-             32,  68, 101, 118, 105,  99, 101,  32,  77,  97, 110,  97, 103, 101, 114,  32,
-             86, 101, 114, 115, 105, 111, 110,  32,  54,  46,  50,  40,  49,  41,  44,  32,
-             32,  67, 111, 109, 112, 105, 108, 101, 100,  32,  50,  47,  50,  52,  47,  50,
-             48,  49,  52,  32,  49,  52,  58,  48,  48,  58,  48,  48,  48,  24,   6,   8,
-             43,   6,   1,   2,   1,   1,   2,   0,   6,  12,  43,   6,   1,   4,   1,   9,
-             12,   3,   1,   3, 135, 112,  48,  17,   6,   8,  43,   6,   1,   2,   1,   1,
-              3,   0,  67,   5,   0, 153, 230, 155, 197,  48,  15,   6,   8,  43,   6,   1,
-              2,   1,   1,   4,   0,   4,   3,  75,  79,  77,  48,  20,   6,   8,  43,   6,
-              1,   2,   1,   1,   5,   0,   4,   8, 115, 119,  45, 100,  45, 115, 110,  49,
-             48,  19,   6,   8,  43,   6,   1,   2,   1,   1,   6,   0,   4,   7,  68,  67,
-             48,  50,  77,  48,  50,  48,  13,   6,   8,  43,   6,   1,   2,   1,   1,   7,
-              0,   2,   1,  70,  48,  17,   6,   8,  43,   6,   1,   2,   1,   1,   8,   0,
-             67,   5,   0, 255, 255, 255, 126,  48,  20,   6,  10,  43,   6,   1,   2,   1,
-              1,   9,   1,   2,   1,   6,   6,  43,   6,   1,   6,   3,   1,  48,  23,   6,
-             10,  43,   6,   1,   2,   1,   1,   9,   1,   2,   2,   6,   9,  43,   6,   1,
-              6,   3,  16,   2,   2,   1,
+            48, 130, 1, 162, 2, 1, 1, 4, 5, 57, 118, 55, 57, 73, 162, 130, 1, 148, 2, 1, 1, 2, 1,
+            0, 2, 1, 0, 48, 130, 1, 135, 48, 129, 202, 6, 8, 43, 6, 1, 2, 1, 1, 1, 0, 4, 129, 189,
+            67, 105, 115, 99, 111, 32, 78, 88, 45, 79, 83, 40, 116, 109, 41, 32, 110, 53, 48, 48,
+            48, 44, 32, 83, 111, 102, 116, 119, 97, 114, 101, 32, 40, 110, 53, 48, 48, 48, 45, 117,
+            107, 57, 41, 44, 32, 86, 101, 114, 115, 105, 111, 110, 32, 54, 46, 48, 40, 50, 41, 78,
+            50, 40, 52, 41, 44, 32, 82, 69, 76, 69, 65, 83, 69, 32, 83, 79, 70, 84, 87, 65, 82, 69,
+            32, 67, 111, 112, 121, 114, 105, 103, 104, 116, 32, 40, 99, 41, 32, 50, 48, 48, 50, 45,
+            50, 48, 49, 50, 32, 98, 121, 32, 67, 105, 115, 99, 111, 32, 83, 121, 115, 116, 101,
+            109, 115, 44, 32, 73, 110, 99, 46, 32, 68, 101, 118, 105, 99, 101, 32, 77, 97, 110, 97,
+            103, 101, 114, 32, 86, 101, 114, 115, 105, 111, 110, 32, 54, 46, 50, 40, 49, 41, 44,
+            32, 32, 67, 111, 109, 112, 105, 108, 101, 100, 32, 50, 47, 50, 52, 47, 50, 48, 49, 52,
+            32, 49, 52, 58, 48, 48, 58, 48, 48, 48, 24, 6, 8, 43, 6, 1, 2, 1, 1, 2, 0, 6, 12, 43,
+            6, 1, 4, 1, 9, 12, 3, 1, 3, 135, 112, 48, 17, 6, 8, 43, 6, 1, 2, 1, 1, 3, 0, 67, 5, 0,
+            153, 230, 155, 197, 48, 15, 6, 8, 43, 6, 1, 2, 1, 1, 4, 0, 4, 3, 75, 79, 77, 48, 20, 6,
+            8, 43, 6, 1, 2, 1, 1, 5, 0, 4, 8, 115, 119, 45, 100, 45, 115, 110, 49, 48, 19, 6, 8,
+            43, 6, 1, 2, 1, 1, 6, 0, 4, 7, 68, 67, 48, 50, 77, 48, 50, 48, 13, 6, 8, 43, 6, 1, 2,
+            1, 1, 7, 0, 2, 1, 70, 48, 17, 6, 8, 43, 6, 1, 2, 1, 1, 8, 0, 67, 5, 0, 255, 255, 255,
+            126, 48, 20, 6, 10, 43, 6, 1, 2, 1, 1, 9, 1, 2, 1, 6, 6, 43, 6, 1, 6, 3, 1, 48, 23, 6,
+            10, 43, 6, 1, 2, 1, 1, 9, 1, 2, 2, 6, 9, 43, 6, 1, 6, 3, 16, 2, 2, 1,
         ];
         assert_eq!(bytes, expected_bytes);
     }
@@ -1417,26 +1558,21 @@ mod tests {
     #[test]
     fn test_decode3() {
         let bytes: Vec<u8> = vec![
-             48, 130,   1,  53,   2,   1,   1,   4,   8, 114, 101,  97, 100, 111, 110, 108,
-            121, 162, 130,   1,  36,   2,   1,   1,   2,   1,   0,   2,   1,   0,  48, 130,
-              1,  23,  48,  20,   6,  15,  43,   6,   1,   4,   1, 130, 139,  19,   1, 134,
-            141,  31,  69,   1,   0,   2,   1, 214,  48,  43,   6,  15,  43,   6,   1,   4,
-              1, 130, 139,  19,   1, 134, 141,  31,  69,   2,   0,   4,  24,  65,  32,  99,
-            111,  99, 111, 110, 117, 116,  32, 105, 115,  32, 106, 117, 115, 116,  32,  97,
-             32, 110, 117, 116,  46,  48,  22,   6,  15,  43,   6,   1,   4,   1, 130, 139,
-             19,   1, 134, 141,  31,  69,   3,   0,   4,   3,  23,  42,  69,  48,  33,   6,
-             15,  43,   6,   1,   4,   1, 130, 139,  19,   1, 134, 141,  31,  69,   4,   0,
-              6,  14,  43,   6,   1,   4,   1, 130, 139,  19,   1, 134, 141,  31,  69,   9,
-             48,  23,   6,  15,  43,   6,   1,   4,   1, 130, 139,  19,   1, 134, 141,  31,
-             69,   5,   0,  64,   4, 128, 131,  34,  30,  48,  24,   6,  15,  43,   6,   1,
-              4,   1, 130, 139,  19,   1, 134, 141,  31,  69,   6,   0,  65,   5,   0, 254,
-            254, 254, 254,  48,  24,   6,  15,  43,   6,   1,   4,   1, 130, 139,  19,   1,
-            134, 141,  31,  69,   7,   0,  66,   5,   0, 222, 173, 190, 239,  48,  24,   6,
-             15,  43,   6,   1,   4,   1, 130, 139,  19,   1, 134, 141,  31,  69,   8,   0,
-             67,   5,   0, 165,  95, 172, 229,  48,  28,   6,  15,  43,   6,   1,   4,   1,
-            130, 139,  19,   1, 134, 141,  31,  69,   9,   0,  70,   9,   0, 222, 173, 190,
-            239, 165,  95, 172, 229,  48,  18,   6,  10,  43,   6,   1,   6,   3,   1,   1,
-              6,   1,   0,   2,   4,  36,  24,   7,  18,
+            48, 130, 1, 53, 2, 1, 1, 4, 8, 114, 101, 97, 100, 111, 110, 108, 121, 162, 130, 1, 36,
+            2, 1, 1, 2, 1, 0, 2, 1, 0, 48, 130, 1, 23, 48, 20, 6, 15, 43, 6, 1, 4, 1, 130, 139, 19,
+            1, 134, 141, 31, 69, 1, 0, 2, 1, 214, 48, 43, 6, 15, 43, 6, 1, 4, 1, 130, 139, 19, 1,
+            134, 141, 31, 69, 2, 0, 4, 24, 65, 32, 99, 111, 99, 111, 110, 117, 116, 32, 105, 115,
+            32, 106, 117, 115, 116, 32, 97, 32, 110, 117, 116, 46, 48, 22, 6, 15, 43, 6, 1, 4, 1,
+            130, 139, 19, 1, 134, 141, 31, 69, 3, 0, 4, 3, 23, 42, 69, 48, 33, 6, 15, 43, 6, 1, 4,
+            1, 130, 139, 19, 1, 134, 141, 31, 69, 4, 0, 6, 14, 43, 6, 1, 4, 1, 130, 139, 19, 1,
+            134, 141, 31, 69, 9, 48, 23, 6, 15, 43, 6, 1, 4, 1, 130, 139, 19, 1, 134, 141, 31, 69,
+            5, 0, 64, 4, 128, 131, 34, 30, 48, 24, 6, 15, 43, 6, 1, 4, 1, 130, 139, 19, 1, 134,
+            141, 31, 69, 6, 0, 65, 5, 0, 254, 254, 254, 254, 48, 24, 6, 15, 43, 6, 1, 4, 1, 130,
+            139, 19, 1, 134, 141, 31, 69, 7, 0, 66, 5, 0, 222, 173, 190, 239, 48, 24, 6, 15, 43, 6,
+            1, 4, 1, 130, 139, 19, 1, 134, 141, 31, 69, 8, 0, 67, 5, 0, 165, 95, 172, 229, 48, 28,
+            6, 15, 43, 6, 1, 4, 1, 130, 139, 19, 1, 134, 141, 31, 69, 9, 0, 70, 9, 0, 222, 173,
+            190, 239, 165, 95, 172, 229, 48, 18, 6, 10, 43, 6, 1, 6, 3, 1, 1, 6, 1, 0, 2, 4, 36,
+            24, 7, 18,
         ];
 
         let asn1: Snmp2cMessage = der_decode(&bytes).unwrap();
@@ -1452,25 +1588,67 @@ mod tests {
         assert_eq!(inner_pdu.error_index, 0);
         assert_eq!(inner_pdu.variable_bindings.len(), 10);
 
-        assert_eq!(inner_pdu.variable_bindings[0].name, "1.3.6.1.4.1.34195.1.99999.69.1.0".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[0].name,
+            "1.3.6.1.4.1.34195.1.99999.69.1.0".parse().unwrap()
+        );
         assert_eq!(gimme_int(&inner_pdu.variable_bindings[0]), -42);
-        assert_eq!(inner_pdu.variable_bindings[1].name, "1.3.6.1.4.1.34195.1.99999.69.2.0".parse().unwrap());
-        assert_eq!(gimme_octets(&inner_pdu.variable_bindings[1]), b"A coconut is just a nut.");
-        assert_eq!(inner_pdu.variable_bindings[2].name, "1.3.6.1.4.1.34195.1.99999.69.3.0".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[1].name,
+            "1.3.6.1.4.1.34195.1.99999.69.2.0".parse().unwrap()
+        );
+        assert_eq!(
+            gimme_octets(&inner_pdu.variable_bindings[1]),
+            b"A coconut is just a nut."
+        );
+        assert_eq!(
+            inner_pdu.variable_bindings[2].name,
+            "1.3.6.1.4.1.34195.1.99999.69.3.0".parse().unwrap()
+        );
         assert_eq!(gimme_octets(&inner_pdu.variable_bindings[2]), &[23, 42, 69]);
-        assert_eq!(inner_pdu.variable_bindings[3].name, "1.3.6.1.4.1.34195.1.99999.69.4.0".parse().unwrap());
-        assert_eq!(gimme_oid(&inner_pdu.variable_bindings[3]), "1.3.6.1.4.1.34195.1.99999.69.9".parse().unwrap());
-        assert_eq!(inner_pdu.variable_bindings[4].name, "1.3.6.1.4.1.34195.1.99999.69.5.0".parse().unwrap());
-        assert_eq!(gimme_ip(&inner_pdu.variable_bindings[4]), "128.131.34.30".parse::<Ipv4Addr>().unwrap());
-        assert_eq!(inner_pdu.variable_bindings[5].name, "1.3.6.1.4.1.34195.1.99999.69.6.0".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[3].name,
+            "1.3.6.1.4.1.34195.1.99999.69.4.0".parse().unwrap()
+        );
+        assert_eq!(
+            gimme_oid(&inner_pdu.variable_bindings[3]),
+            "1.3.6.1.4.1.34195.1.99999.69.9".parse().unwrap()
+        );
+        assert_eq!(
+            inner_pdu.variable_bindings[4].name,
+            "1.3.6.1.4.1.34195.1.99999.69.5.0".parse().unwrap()
+        );
+        assert_eq!(
+            gimme_ip(&inner_pdu.variable_bindings[4]),
+            "128.131.34.30".parse::<Ipv4Addr>().unwrap()
+        );
+        assert_eq!(
+            inner_pdu.variable_bindings[5].name,
+            "1.3.6.1.4.1.34195.1.99999.69.6.0".parse().unwrap()
+        );
         assert_eq!(gimme_counter(&inner_pdu.variable_bindings[5]), 0xFEFEFEFE);
-        assert_eq!(inner_pdu.variable_bindings[6].name, "1.3.6.1.4.1.34195.1.99999.69.7.0".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[6].name,
+            "1.3.6.1.4.1.34195.1.99999.69.7.0".parse().unwrap()
+        );
         assert_eq!(gimme_unsigned(&inner_pdu.variable_bindings[6]), 0xDEADBEEF);
-        assert_eq!(inner_pdu.variable_bindings[7].name, "1.3.6.1.4.1.34195.1.99999.69.8.0".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[7].name,
+            "1.3.6.1.4.1.34195.1.99999.69.8.0".parse().unwrap()
+        );
         assert_eq!(gimme_time(&inner_pdu.variable_bindings[7]), 0xA55FACE5);
-        assert_eq!(inner_pdu.variable_bindings[8].name, "1.3.6.1.4.1.34195.1.99999.69.9.0".parse().unwrap());
-        assert_eq!(gimme_counter64(&inner_pdu.variable_bindings[8]), 0xDEADBEEFA55FACE5);
-        assert_eq!(inner_pdu.variable_bindings[9].name, "1.3.6.1.6.3.1.1.6.1.0".parse().unwrap());
+        assert_eq!(
+            inner_pdu.variable_bindings[8].name,
+            "1.3.6.1.4.1.34195.1.99999.69.9.0".parse().unwrap()
+        );
+        assert_eq!(
+            gimme_counter64(&inner_pdu.variable_bindings[8]),
+            0xDEADBEEFA55FACE5
+        );
+        assert_eq!(
+            inner_pdu.variable_bindings[9].name,
+            "1.3.6.1.6.3.1.1.6.1.0".parse().unwrap()
+        );
         assert_eq!(gimme_int(&inner_pdu.variable_bindings[9]), 605554450);
     }
 
@@ -1490,7 +1668,9 @@ mod tests {
                     },
                     VariableBinding {
                         name: "1.3.6.1.4.1.34195.1.99999.69.2.0".parse().unwrap(),
-                        value: BindingValue::Value(ObjectValue::String(b"A coconut is just a nut.".to_vec())),
+                        value: BindingValue::Value(ObjectValue::String(
+                            b"A coconut is just a nut.".to_vec(),
+                        )),
                     },
                     VariableBinding {
                         name: "1.3.6.1.4.1.34195.1.99999.69.3.0".parse().unwrap(),
@@ -1498,11 +1678,15 @@ mod tests {
                     },
                     VariableBinding {
                         name: "1.3.6.1.4.1.34195.1.99999.69.4.0".parse().unwrap(),
-                        value: BindingValue::Value(ObjectValue::ObjectId("1.3.6.1.4.1.34195.1.99999.69.9".parse().unwrap())),
+                        value: BindingValue::Value(ObjectValue::ObjectId(
+                            "1.3.6.1.4.1.34195.1.99999.69.9".parse().unwrap(),
+                        )),
                     },
                     VariableBinding {
                         name: "1.3.6.1.4.1.34195.1.99999.69.5.0".parse().unwrap(),
-                        value: BindingValue::Value(ObjectValue::IpAddress("128.131.34.30".parse().unwrap())),
+                        value: BindingValue::Value(ObjectValue::IpAddress(
+                            "128.131.34.30".parse().unwrap(),
+                        )),
                     },
                     VariableBinding {
                         name: "1.3.6.1.4.1.34195.1.99999.69.6.0".parse().unwrap(),
@@ -1530,26 +1714,21 @@ mod tests {
         let bytes = der_encode(&message).unwrap();
 
         let expected_bytes: Vec<u8> = vec![
-             48, 130,   1,  53,   2,   1,   1,   4,   8, 114, 101,  97, 100, 111, 110, 108,
-            121, 162, 130,   1,  36,   2,   1,   1,   2,   1,   0,   2,   1,   0,  48, 130,
-              1,  23,  48,  20,   6,  15,  43,   6,   1,   4,   1, 130, 139,  19,   1, 134,
-            141,  31,  69,   1,   0,   2,   1, 214,  48,  43,   6,  15,  43,   6,   1,   4,
-              1, 130, 139,  19,   1, 134, 141,  31,  69,   2,   0,   4,  24,  65,  32,  99,
-            111,  99, 111, 110, 117, 116,  32, 105, 115,  32, 106, 117, 115, 116,  32,  97,
-             32, 110, 117, 116,  46,  48,  22,   6,  15,  43,   6,   1,   4,   1, 130, 139,
-             19,   1, 134, 141,  31,  69,   3,   0,   4,   3,  23,  42,  69,  48,  33,   6,
-             15,  43,   6,   1,   4,   1, 130, 139,  19,   1, 134, 141,  31,  69,   4,   0,
-              6,  14,  43,   6,   1,   4,   1, 130, 139,  19,   1, 134, 141,  31,  69,   9,
-             48,  23,   6,  15,  43,   6,   1,   4,   1, 130, 139,  19,   1, 134, 141,  31,
-             69,   5,   0,  64,   4, 128, 131,  34,  30,  48,  24,   6,  15,  43,   6,   1,
-              4,   1, 130, 139,  19,   1, 134, 141,  31,  69,   6,   0,  65,   5,   0, 254,
-            254, 254, 254,  48,  24,   6,  15,  43,   6,   1,   4,   1, 130, 139,  19,   1,
-            134, 141,  31,  69,   7,   0,  66,   5,   0, 222, 173, 190, 239,  48,  24,   6,
-             15,  43,   6,   1,   4,   1, 130, 139,  19,   1, 134, 141,  31,  69,   8,   0,
-             67,   5,   0, 165,  95, 172, 229,  48,  28,   6,  15,  43,   6,   1,   4,   1,
-            130, 139,  19,   1, 134, 141,  31,  69,   9,   0,  70,   9,   0, 222, 173, 190,
-            239, 165,  95, 172, 229,  48,  18,   6,  10,  43,   6,   1,   6,   3,   1,   1,
-              6,   1,   0,   2,   4,  36,  24,   7,  18,
+            48, 130, 1, 53, 2, 1, 1, 4, 8, 114, 101, 97, 100, 111, 110, 108, 121, 162, 130, 1, 36,
+            2, 1, 1, 2, 1, 0, 2, 1, 0, 48, 130, 1, 23, 48, 20, 6, 15, 43, 6, 1, 4, 1, 130, 139, 19,
+            1, 134, 141, 31, 69, 1, 0, 2, 1, 214, 48, 43, 6, 15, 43, 6, 1, 4, 1, 130, 139, 19, 1,
+            134, 141, 31, 69, 2, 0, 4, 24, 65, 32, 99, 111, 99, 111, 110, 117, 116, 32, 105, 115,
+            32, 106, 117, 115, 116, 32, 97, 32, 110, 117, 116, 46, 48, 22, 6, 15, 43, 6, 1, 4, 1,
+            130, 139, 19, 1, 134, 141, 31, 69, 3, 0, 4, 3, 23, 42, 69, 48, 33, 6, 15, 43, 6, 1, 4,
+            1, 130, 139, 19, 1, 134, 141, 31, 69, 4, 0, 6, 14, 43, 6, 1, 4, 1, 130, 139, 19, 1,
+            134, 141, 31, 69, 9, 48, 23, 6, 15, 43, 6, 1, 4, 1, 130, 139, 19, 1, 134, 141, 31, 69,
+            5, 0, 64, 4, 128, 131, 34, 30, 48, 24, 6, 15, 43, 6, 1, 4, 1, 130, 139, 19, 1, 134,
+            141, 31, 69, 6, 0, 65, 5, 0, 254, 254, 254, 254, 48, 24, 6, 15, 43, 6, 1, 4, 1, 130,
+            139, 19, 1, 134, 141, 31, 69, 7, 0, 66, 5, 0, 222, 173, 190, 239, 48, 24, 6, 15, 43, 6,
+            1, 4, 1, 130, 139, 19, 1, 134, 141, 31, 69, 8, 0, 67, 5, 0, 165, 95, 172, 229, 48, 28,
+            6, 15, 43, 6, 1, 4, 1, 130, 139, 19, 1, 134, 141, 31, 69, 9, 0, 70, 9, 0, 222, 173,
+            190, 239, 165, 95, 172, 229, 48, 18, 6, 10, 43, 6, 1, 6, 3, 1, 1, 6, 1, 0, 2, 4, 36,
+            24, 7, 18,
         ];
         assert_eq!(bytes, expected_bytes);
     }

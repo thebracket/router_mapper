@@ -42,7 +42,11 @@ impl RouterList {
         Ok(Self { targets })
     }
 
-    async fn router_builder_with_retries(ip: String, community: String, retries: u32) -> Result<Router> {
+    async fn router_builder_with_retries(
+        ip: String,
+        community: String,
+        retries: u32,
+    ) -> Result<Router> {
         for attempt in 0..retries {
             if attempt > 0 {
                 info!("Retrying {ip} (attempt {attempt} of {retries})...");

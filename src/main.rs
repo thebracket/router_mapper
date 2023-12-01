@@ -1,6 +1,7 @@
 #![recursion_limit = "256"]
 #![allow(dead_code)]
 
+mod config;
 mod csnmp;
 mod router;
 use anyhow::Result;

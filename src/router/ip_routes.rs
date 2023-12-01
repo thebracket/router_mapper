@@ -1,7 +1,11 @@
-use crate::{query_engine::{as_int, as_ip, snmp_query}, csnmp::ObjectValue};
-use anyhow::{Result, bail};
-use tracing::error;
+use crate::{
+    config::CONFIG,
+    csnmp::ObjectValue,
+    query_engine::{as_int, as_ip, snmp_query},
+};
+use anyhow::{bail, Result};
 use std::net::IpAddr;
+use tracing::error;
 
 #[derive(Debug)]
 pub struct IpRoutes {
@@ -49,7 +53,10 @@ impl IpRoutes {
         );
 
         if dest.is_err() || next_hop.is_err() {
-            error!("Error obtaining gateway information: {:?}, {ip_address}", dest.err());
+            error!(
+                "Error obtaining gateway information: {:?}, {ip_address}",
+                dest.err()
+            );
             return Ok(Self { routes: vec![] });
         }
 
@@ -61,15 +68,19 @@ impl IpRoutes {
         }
 
         // Secondary hop support - for iBGP and route-reflection setups
-        if let Ok(secondary_hop) = Self::lookup_secondary(ip_address, community, &next_hop[0].1).await {
-            tracing::info!("Secondary hop found: {secondary_hop:?}");
-            return Ok(Self {
-                routes: vec![IpRoute {
-                    destination: as_ip(&dest[0].1)?,
-                    interface_index: -1,
-                    next_hop: secondary_hop,
-                }],
-            });
+        if CONFIG.enable_next_hop_lookup {
+            if let Ok(secondary_hop) =
+                Self::lookup_secondary(ip_address, community, &next_hop[0].1).await
+            {
+                tracing::info!("Secondary hop found: {secondary_hop:?}");
+                return Ok(Self {
+                    routes: vec![IpRoute {
+                        destination: as_ip(&dest[0].1)?,
+                        interface_index: -1,
+                        next_hop: secondary_hop,
+                    }],
+                });
+            }
         }
 
         tracing::info!("Returning routes via inetCidrRouteTable");
@@ -82,9 +93,16 @@ impl IpRoutes {
         })
     }
 
-    async fn lookup_secondary(ip_address: &str, community: &str, next_hop: &ObjectValue) -> Result<IpAddr> {
-        let secondary_hop = format!("1.3.6.1.2.1.4.24.4.1.4.0.0.0.0.0.0.0.0.0.{}", as_ip(&next_hop)?);
-        let result = snmp_query(ip_address, community,&secondary_hop).await?;
+    async fn lookup_secondary(
+        ip_address: &str,
+        community: &str,
+        next_hop: &ObjectValue,
+    ) -> Result<IpAddr> {
+        let secondary_hop = format!(
+            "1.3.6.1.2.1.4.24.4.1.4.0.0.0.0.0.0.0.0.0.{}",
+            as_ip(&next_hop)?
+        );
+        let result = snmp_query(ip_address, community, &secondary_hop).await?;
         if result.is_empty() {
             bail!("No secondary hop found");
         }
