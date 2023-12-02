@@ -1,111 +1,158 @@
-use crate::{
-    config::CONFIG,
-    csnmp::ObjectValue,
-    query_engine::{as_int, as_ip, snmp_query},
-};
+use crate::query_engine::{as_int, as_ip, snmp_query};
 use anyhow::{bail, Result};
-use std::net::IpAddr;
-use tracing::error;
+use ipnetwork::ip_mask_to_prefix;
+use std::{collections::HashMap, net::IpAddr};
 
 #[derive(Debug)]
 pub struct IpRoutes {
-    pub routes: Vec<IpRoute>,
+    pub routes: Vec<CidrEntry>,
 }
 
+const CIDR_TABLE: &str = "1.3.6.1.2.1.4.24.4.";
+//const CIDR_TABLE: &str = "1.3.6.1.2.1.4.24.7";
+
+const INET_ROUTE_TABLE: &str = "1.3.6.1.2.1.4.21.1.";
+
 #[derive(Debug)]
-pub struct IpRoute {
+pub struct CidrEntry {
+    // .1 = destination
     pub destination: IpAddr,
-    pub interface_index: i32,
+
+    // .2 = netmask
+    pub netmask: u8,
+
+    // .3 = tos
+
+    // .4 = next hop
     pub next_hop: IpAddr,
+
+    // .5 = ifIndex
+    pub if_index: i32,
+    // .6 = Route type
+    // .7 = Route Proto
+    // .8 = Route Age
+    // .9 = Route Info (object id)
+    // .10 = Next Hop AS
+    // .11 = Metric 1
+    // .12, .13, .14. 15 = Metrics 2,3,4,5
+    // .16 = Route Status
 }
 
 impl IpRoutes {
-    pub(crate) async fn from_snmp(ip_address: &str, community: &str) -> Result<Self> {
-        // Note that dgw is short for "default gateway"
-        let (dgw_dest, dgw_iface, dgw_next_hop) = tokio::join!(
-            snmp_query(ip_address, community, "1.3.6.1.2.1.4.21.1.1.0.0.0.0"),
-            snmp_query(ip_address, community, "1.3.6.1.2.1.4.21.1.2.0.0.0.0"),
-            snmp_query(ip_address, community, "1.3.6.1.2.1.4.21.1.7.0.0.0.0"),
+    fn ip_from_oid(oid: &str) -> Result<IpAddr> {
+        let oid_split = oid.split('.').collect::<Vec<&str>>();
+        let idx = 11;
+        let route_ip = format!(
+            "{}.{}.{}.{}",
+            oid_split[idx],
+            oid_split[idx + 1],
+            oid_split[idx + 2],
+            oid_split[idx + 3]
         );
-
-        if dgw_dest.is_err() || dgw_iface.is_err() || dgw_next_hop.is_err() {
-            return Self::from_snmp_modern(ip_address, community).await;
-        }
-
-        let (dgw_dest, dgw_iface, dgw_next_hop) = (dgw_dest?, dgw_iface?, dgw_next_hop?);
-        if dgw_dest.is_empty() || dgw_iface.is_empty() || dgw_next_hop.is_empty() {
-            return Self::from_snmp_modern(ip_address, community).await;
-        }
-
-        Ok(Self {
-            routes: vec![IpRoute {
-                destination: as_ip(&dgw_dest[0].1)?,
-                interface_index: as_int(&dgw_iface[0].1)?,
-                next_hop: as_ip(&dgw_next_hop[0].1)?,
-            }],
-        })
+        Ok(route_ip.parse::<IpAddr>()?)
     }
 
-    async fn from_snmp_modern(ip_address: &str, community: &str) -> Result<Self> {
-        let (dest, next_hop) = tokio::join!(
-            snmp_query(ip_address, community, "1.3.6.1.2.1.4.24.4.1.1.0.0.0.0"),
-            snmp_query(ip_address, community, "1.3.6.1.2.1.4.24.4.1.4.0.0.0.0")
-        );
-
-        if dest.is_err() || next_hop.is_err() {
-            error!(
-                "Error obtaining gateway information: {:?}, {ip_address}",
-                dest.err()
-            );
-            return Ok(Self { routes: vec![] });
+    pub(crate) async fn from_snmp(ip_address: &str, community: &str) -> Result<Self> {
+        let unknown_ip: IpAddr = "255.255.255.255".parse().unwrap();
+        let full_table = snmp_query(ip_address, community, CIDR_TABLE).await;
+        if full_table.is_err() {
+            tracing::info!("Falling back to older SNMP table for {ip_address}");
+            return Self::from_old_table(ip_address, community).await;
         }
+        let full_table = full_table.unwrap();
 
-        let (dest, next_hop) = (dest?, next_hop?);
+        let mut routes = HashMap::new();
 
-        if dest.is_empty() || next_hop.is_empty() {
-            error!("Error obtaining gateway information - no routes found, {ip_address}");
-            return Ok(Self { routes: vec![] });
-        }
-
-        // Secondary hop support - for iBGP and route-reflection setups
-        if CONFIG.enable_next_hop_lookup {
-            if let Ok(secondary_hop) =
-                Self::lookup_secondary(ip_address, community, &next_hop[0].1).await
-            {
-                tracing::info!("Secondary hop found: {secondary_hop:?}");
-                return Ok(Self {
-                    routes: vec![IpRoute {
-                        destination: as_ip(&dest[0].1)?,
-                        interface_index: -1,
-                        next_hop: secondary_hop,
-                    }],
-                });
+        for (oid, value) in full_table {
+            if oid.starts_with("1.3.6.1.2.1.4.24.4.1.1.") {
+                // New record. This is the route destination
+                let destination = as_ip(&value)?;
+                let new_route = CidrEntry {
+                    destination,
+                    netmask: 255,
+                    next_hop: unknown_ip,
+                    if_index: -1,
+                };
+                routes.insert(destination, new_route);
+                //tracing::info!("Inserting new route: {destination}");
+            } else if oid.starts_with("1.3.6.1.2.1.4.24.4.1.2.") {
+                let ip = Self::ip_from_oid(&oid)?;
+                if let Some(route) = routes.get_mut(&ip) {
+                    let mask = as_ip(&value)?;
+                    let cidr = ip_mask_to_prefix(mask)?;
+                    route.netmask = cidr;
+                } else {
+                    tracing::error!("No route found for {ip}");
+                }
+            } else if oid.starts_with("1.3.6.1.2.1.4.24.4.1.4.") {
+                let ip = Self::ip_from_oid(&oid)?;
+                if let Some(route) = routes.get_mut(&ip) {
+                    route.next_hop = as_ip(&value)?;
+                } else {
+                    tracing::error!("No route found for {ip}");
+                }
+            } else if oid.starts_with("1.3.6.1.2.1.4.24.4.1.5.") {
+                let ip = Self::ip_from_oid(&oid)?;
+                if let Some(route) = routes.get_mut(&ip) {
+                    route.if_index = as_int(&value)?;
+                } else {
+                    tracing::error!("No route found for {ip}");
+                }
             }
         }
 
-        tracing::info!("Returning routes via inetCidrRouteTable");
+        if routes.is_empty() {
+            return Self::from_old_table(ip_address, community).await;
+        }
+
         Ok(Self {
-            routes: vec![IpRoute {
-                destination: as_ip(&dest[0].1)?,
-                interface_index: -1,
-                next_hop: as_ip(&next_hop[0].1)?,
-            }],
+            routes: routes.into_iter().map(|(_, v)| v).collect(),
         })
     }
 
-    async fn lookup_secondary(
-        ip_address: &str,
-        community: &str,
-        next_hop: &ObjectValue,
-    ) -> Result<IpAddr> {
-        let secondary_hop = format!(
-            "1.3.6.1.2.1.4.24.4.1.4.0.0.0.0.0.0.0.0.0.{}",
-            as_ip(&next_hop)?
-        );
-        let result = snmp_query(ip_address, community, &secondary_hop).await?;
-        if result.is_empty() {
-            bail!("No secondary hop found");
+    pub(crate) async fn from_old_table(ip_address: &str, community: &str) -> Result<Self> {
+        let full_table = snmp_query(ip_address, community, INET_ROUTE_TABLE).await;
+        if full_table.is_err() {
+            tracing::info!("Unable to retreieve old-style routing table from {ip_address}");
+            bail!("Unable to retreieve old-style routing table from {ip_address}, {full_table:?}");
         }
-        as_ip(&result[0].1)
+        let full_table = full_table.unwrap();
+
+        let unknown_ip: IpAddr = "255.255.255.255".parse().unwrap();
+        let mut routes = HashMap::new();
+        for (oid, val) in full_table {
+            if oid.starts_with("1.3.6.1.2.1.4.21.1.1.") {
+                // We have a new route
+                let route_ip = as_ip(&val)?;
+                let new_route = CidrEntry {
+                    destination: route_ip,
+                    netmask: 255,
+                    next_hop: unknown_ip,
+                    if_index: -1,
+                };
+                routes.insert(route_ip, new_route);
+            } else if oid.starts_with("1.3.6.1.2.1.4.21.1.2.") {
+                let ip_from_oid = oid[21..].parse::<IpAddr>()?;
+                if let Some(route) = routes.get_mut(&ip_from_oid) {
+                    route.if_index = as_int(&val)?;
+                }
+            } else if oid.starts_with("1.3.6.1.2.1.4.21.1.7.") {
+                let ip_from_oid = oid[21..].parse::<IpAddr>()?;
+                if let Some(route) = routes.get_mut(&ip_from_oid) {
+                    route.next_hop = as_ip(&val)?;
+                }
+            } else if oid.starts_with("1.3.6.1.2.1.4.21.1.11.") {
+                let ip_from_oid = oid[22..].parse::<IpAddr>()?;
+                if let Some(route) = routes.get_mut(&ip_from_oid) {
+                    let mask = as_ip(&val)?;
+                    let cidr = ip_mask_to_prefix(mask)?;
+                    route.netmask = cidr;
+                }
+            }
+        }
+
+        Ok(Self {
+            routes: routes.into_iter().map(|(_, v)| v).collect(),
+        })
     }
 }

@@ -49,7 +49,7 @@ impl RouterList {
     ) -> Result<Router> {
         for attempt in 0..retries {
             if attempt > 0 {
-                info!("Retrying {ip} (attempt {attempt} of {retries})...");
+                info!("Retrying {ip} (attempt {} of {retries})...", attempt + 1);
             }
             match router_builder(ip.clone(), community.clone()).await {
                 Ok(router) => return Ok(router),

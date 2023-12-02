@@ -5,7 +5,7 @@ mod config;
 mod csnmp;
 mod router;
 use anyhow::Result;
-use std::time::Instant;
+use std::{net::IpAddr, time::Instant};
 use tracing::info;
 mod query_engine;
 mod router_list;
@@ -53,10 +53,17 @@ async fn main() -> Result<()> {
         .collect();
 
     // Find by default gateway search
+    let default_ipv4: IpAddr = "0.0.0.0".parse().unwrap();
     route_map.iter_mut().enumerate().for_each(|(idx, map)| {
         let me = &routers[idx];
         if !me.ip_routes.routes.is_empty() {
-            let my_default_route = &me.ip_routes.routes[0].next_hop;
+            let my_default_route = &me
+                .ip_routes
+                .routes
+                .iter()
+                .find(|r| r.destination == default_ipv4)
+                .unwrap()
+                .next_hop;
             let likely_parent = routers.iter().position(|r| {
                 r.ip_table
                     .ips
@@ -64,6 +71,40 @@ async fn main() -> Result<()> {
                     .any(|ip| ip.address == *my_default_route)
             });
             map.parent = likely_parent;
+
+            if !me
+                .ip_table
+                .ips
+                .iter()
+                .any(|ip| ip.ip_network().contains(*my_default_route))
+            {
+                tracing::info!(
+                    "{} is a NOT parent of {}",
+                    map.name,
+                    me.system_info.hostname
+                );
+                tracing::info!(
+                    "{} has a default route of {}",
+                    me.system_info.hostname,
+                    my_default_route
+                );
+                println!("{me:?}");
+                tracing::info!("Let's go looking for a parent...");
+                let likely_parent = me
+                    .ip_routes
+                    .routes
+                    .iter()
+                    .position(|r| r.destination == *my_default_route);
+                if let Some(likely_parent) = likely_parent {
+                    tracing::info!(
+                        "Found a likely parent: {}",
+                        routers[likely_parent].system_info.hostname
+                    );
+                    map.parent = Some(likely_parent);
+                }
+            }
+        } else {
+            tracing::info!("{} has no routes", map.name);
         }
     });
 

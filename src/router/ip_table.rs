@@ -14,6 +14,12 @@ pub struct IpAddress {
     pub cidr_mask: u8,
 }
 
+impl IpAddress {
+    pub fn ip_network(&self) -> ipnetwork::IpNetwork {
+        ipnetwork::IpNetwork::new(self.address, self.cidr_mask).unwrap()
+    }
+}
+
 impl IpTable {
     pub(crate) async fn from_snmp(ip_address: &str, community: &str) -> Result<IpTable> {
         let ip_table = snmp_query(ip_address, community, "1.3.6.1.2.1.4.20").await?;
