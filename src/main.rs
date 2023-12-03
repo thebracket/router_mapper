@@ -90,17 +90,23 @@ async fn main() -> Result<()> {
                 );
                 println!("{me:?}");
                 tracing::info!("Let's go looking for a parent...");
-                let likely_parent = me
+                let likely_parent_route_idx = me
                     .ip_routes
                     .routes
                     .iter()
                     .position(|r| r.destination == *my_default_route);
-                if let Some(likely_parent) = likely_parent {
-                    tracing::info!(
-                        "Found a likely parent: {}",
-                        routers[likely_parent].system_info.hostname
-                    );
-                    map.parent = Some(likely_parent);
+                if let Some(likely_parent_route_idx) = likely_parent_route_idx {
+                    if let Some(likely_parent) = routers.iter().position(|r| {
+                        r.ip_table.ips.iter().any(|ip| {
+                            ip.address == me.ip_routes.routes[likely_parent_route_idx].next_hop
+                        })
+                    }) {
+                        tracing::info!(
+                            "Found a likely parent: {}",
+                            routers[likely_parent].system_info.hostname
+                        );
+                        map.parent = Some(likely_parent);
+                    }
                 }
             }
         } else {
