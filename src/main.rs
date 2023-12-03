@@ -96,11 +96,16 @@ async fn main() -> Result<()> {
                     .iter()
                     .position(|r| r.destination == *my_default_route);
                 if let Some(likely_parent_route_idx) = likely_parent_route_idx {
-                    if let Some(likely_parent) = routers.iter().position(|r| {
-                        r.ip_table.ips.iter().any(|ip| {
-                            ip.address == me.ip_routes.routes[likely_parent_route_idx].next_hop
+                    if let Some(likely_parent) = routers
+                        .iter()
+                        .enumerate()
+                        .filter(|(new_idx, _)| *new_idx != idx)
+                        .position(|(_, r)| {
+                            r.ip_table.ips.iter().any(|ip| {
+                                ip.address == me.ip_routes.routes[likely_parent_route_idx].next_hop
+                            })
                         })
-                    }) {
+                    {
                         tracing::info!(
                             "Found a likely parent: {}",
                             routers[likely_parent].system_info.hostname
