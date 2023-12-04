@@ -16,11 +16,12 @@ struct RouteMap {
     parent: Option<usize>,
 }
 
-fn print_tree(tree: &Vec<RouteMap>, idx: usize, indent: usize) {
+fn print_tree(tree: &Vec<RouteMap>, idx: usize, indent: usize, printed: &mut Vec<bool>) {
     for (index, map) in tree.iter().enumerate() {
         if map.parent == Some(idx) {
+            printed[index] = true;
             println!("{}-> {}", "-".repeat(indent), map.name);
-            print_tree(tree, index, indent + 3);
+            print_tree(tree, index, indent + 3, printed);
         }
     }
 }
@@ -120,10 +121,23 @@ async fn main() -> Result<()> {
     });
 
     // Display as a nice tree
+    let mut printed = vec![false; route_map.len()];
+
     for (index, map) in route_map.iter().enumerate() {
-        if map.parent.is_none() {
+        if map.parent.is_none() && !printed[index] {
+            printed[index] = true;
             println!("{}", map.name);
-            print_tree(&route_map, index, 3);
+            print_tree(&route_map, index, 3, &mut printed);
+        }
+    }
+
+    while printed.iter().any(|p| !p) {
+        for (index, map) in route_map.iter().enumerate() {
+            if map.parent.is_none() && !printed[index] {
+                printed[index] = true;
+                println!("{}", map.name);
+                print_tree(&route_map, index, 3, &mut printed);
+            }
         }
     }
 
