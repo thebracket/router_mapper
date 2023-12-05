@@ -133,7 +133,7 @@ async fn main() -> Result<()> {
 
     while printed.iter().any(|p| !p) {
         for (index, map) in route_map.iter().enumerate() {
-            if map.parent.is_none() && !printed[index] {
+            if !printed[index] {
                 printed[index] = true;
                 println!("{}", map.name);
                 print_tree(&route_map, index, 3, &mut printed);
